@@ -2,13 +2,13 @@
 # Date:                        29-03-2022
 # Function:                    Generate Survival Curves for the CABA-V7 study.
 
-
 # Import libraries ----
 
 library(plyr)
 library(dplyr)
 library(ggplot2)
 library(survminer)
+library(gtsummary)
 library(extrafont)
 library(patchwork)
 
@@ -70,7 +70,7 @@ plotSurvival <- function(fit, ylim, data, palette = 'jco', hr = NULL){
         dplyr::group_by(strata) %>%
         dplyr::summarise(
             medianOS = round(median(time, na.rm = T), 2),
-            label = sprintf('%s - %s mo', unique(strata), medianOS)
+            label = sprintf('%s - %s mo.', unique(strata), medianOS)
         ) %>%
         dplyr::ungroup() %>%
         dplyr::arrange(-medianOS)
@@ -84,6 +84,27 @@ plotSurvival <- function(fit, ylim, data, palette = 'jco', hr = NULL){
     return(x)
 }
 
+plotHR <- function(data, withQ = F){
+    x <- data %>% 
+        gtsummary::tbl_regression(
+            exponentiate = T, 
+            add_estimate_to_reference_rows = T,
+        ) %>%
+        gtsummary::add_n() %>% 
+        gtsummary::add_global_p() %>% 
+        gtsummary::add_nevent() %>% 
+        gtsummary::bold_p() %>% 
+        gtsummary::bold_labels() %>% 
+        gtsummary::italicize_levels() %>% 
+        gtsummary::sort_p() %>% 
+        bstfun::add_inline_forest_plot(header = '', spec_pointrange.args = list(lim = c(-3, 3), width = 550, cex = 1, col = "black", pch = 1))
+    
+    if(withQ){
+        x <- x %>% gtsummary::add_q()
+    }
+    
+    x %>% bstfun::as_ggplot()
+}
 
 # Import data ----
 
@@ -92,7 +113,7 @@ data.Patient$Overview <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of 
 data.Patient$clinicalData <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'Clinical Characteristics') %>% dplyr::mutate(`Subject Number` = as.character(`Subject Number`))
 
 
-# Convert data ----
+# Convert and clean data ----
 
 data.Survival <- data.Patient$clinicalData %>%
     # Convert dates.
@@ -107,97 +128,111 @@ data.Survival <- data.Patient$clinicalData %>%
     dplyr::inner_join(data.Patient$Overview) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(
-        `Inclusion (Treated with Caba)` = ifelse(is.na(`Inclusion (Treated with Caba)`), 'No', `Inclusion (Treated with Caba)`),
-        ctcCategoryOn3 = ifelse(`CTC Count (Baseline – 7.5mL)` >= 3, 'CTC Count (Baseline) ≥3', 'CTC Count (Baseline) <3'),
-        ctcCategoryOn5 = ifelse(`CTC Count (Baseline – 7.5mL)` >= 5, 'CTC Count (Baseline) ≥5', 'CTC Count (Baseline) <5'),
-        ARV7.PosvsOther = ifelse(`AR-V7 (Baseline)` %in% c('Neg.', 'Und.'), 'Neg. / Und.', `AR-V7 (Baseline)`),
-        WHO.Pooled = ifelse(`WHO/ECOG PS at registration` %in% c(1,2), '1 - 2', `WHO/ECOG PS at registration`)
-    ) %>%
-    
-    # Combine
-    data.frame()
-
-data.Survival.CabaOnly <- data.Survival %>% dplyr::filter(grepl('Cabazitaxel', Post.Treatment))
+        `Dichotomized CTC count (Baseline)` = ifelse(`CTC Count (Baseline – 7.5mL)` >= 5, 'CTC Count (Baseline) ≥5', 'CTC Count (Baseline) <5'),
+        `Patient recieved Cabazitaxel` = ifelse(grepl('Cabazitaxel', `Post-Treatment`), 'Yes', 'No'),
+        `Inclusion (Treated with Cabazitaxel)` = ifelse(is.na(`Inclusion (Treated with Caba)`), 'No', `Inclusion (Treated with Caba)`),
+        `WHO status (Pooled)` = ifelse(`WHO/ECOG PS at registration` %in% c(1,2), '1 - 2', `WHO/ECOG PS at registration`)
+    )
 
 plotFits <- list()
 
 
-# Calculate Summary ----
-
-data.Survival %>%
-    dplyr::filter(Inclusion..Treated.with.Caba. == 'Yes') %>%
-    dplyr::mutate(
-        totalTrialTime = Date..End.of.Post.Treatment - Date..Start.of.Post.Treatment
-    ) %>%
-    dplyr::summarise(
-        median(daysFromPreScreeningToEnd, na.rm = T),
-        median(monthsFromPreScreeningToEnd, na.rm = T),
-        median(totalTrialTime, na.rm = T),
-        median(Cycles.of.Cabazitaxel, na.rm = T)
-    )
-
-
 # Survival Analysis (Cox regression ----
 
-## Survival - AR-V7 (All included; n = 133) ----
+## Survival - AR-V7 (All included; n = 137) ----
 
-fit.AllInClusion <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = data.Survival)
+fit.AllInClusion <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = data.frame(data.Survival))
 names(fit.AllInClusion$strata) <-  c('AR-V7 Neg.', 'AR-V7 Pos.', 'AR-V7 Und.')
+plotFits$AllInclusion <- plotSurvival(fit.AllInClusion, data = data.frame(data.Survival), ylim = 51, palette = c('#648FFF', '#FE6100', '#4D4D4D'))
 
-plotFits$AllInclusion <- plotSurvival(fit.AllInClusion, data = data.Survival, ylim = 51, palette = c('#648FFF', '#FE6100', '#4D4D4D'))
+# HR.
+plotFits$AllInclusion$hr <- data.Survival %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
+    plotHR
+
+## Survival - AR-V7 - Pos. vs. Neg. (All included; n = 103) ----
+
+fit.AllPosvsNeg <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.') %>% 
+    data.frame() %>% 
+    survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = .)
+
+names(fit.AllPosvsNeg$strata) <-  c('AR-V7 Neg.', 'AR-V7 Pos.')
+
+plotFits$AllInclusion.PosvsNeg <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.') %>% 
+    data.frame() %>% 
+    plotSurvival(fit.AllPosvsNeg, data = ., ylim = 51, palette = c('#648FFF', '#FE6100'))
+
+
+# HR.
+plotFits$AllInclusion.PosvsNeg$hr <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.') %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
+    plotHR
+
+## Survival - AR-V7 (All included; n = 77) ----
+
+fit.CabaOnly <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    data.frame() %>% 
+    survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = .)
+
+names(fit.CabaOnly$strata) <-  c('AR-V7 Neg.', 'AR-V7 Pos.')
+
+plotFits$CabaOnly <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    data.frame() %>% 
+    plotSurvival(fit.CabaOnly, data = ., ylim = 51, palette = c('#648FFF', '#FE6100'))
 
 # Hazard Ratio of multiple groups.
-fit.AllInClusion.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = data.Survival)
-plotFits$AllInClusion.hr <- survminer::ggforest(fit.AllInClusion.hr, data = data.Survival, noDigits = 2)
+plotFits$CabaOnly$hr <- data.Survival %>% 
+    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
+    plotHR
 
 
-## Survival - AR-V7 (Dichotomized) (All included; n = 133) ----
+# Generate Multi-Kaplan Figure (AR-V7) ----
 
-fit.ARV7.PosvsOther <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ ARV7.PosvsOther, data = data.Survival)
-names(fit.ARV7.PosvsOther$strata) <-  c('AR-V7 Neg. / Und.', 'AR-V7 Pos.')
+layout <- "
+ADG
+BEH
+CFI"
 
-fit.ARV7.PosvsOther.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ ARV7.PosvsOther, data = data.Survival)
-plotFits$fit.ARV7.PosvsOther <- plotSurvival(fit.ARV7.PosvsOther, hr = fit.ARV7.PosvsOther.hr, data = data.Survival, ylim = 51, palette = c('#576999', '#FE6100'))
-
-## Survival - CTC (All included; n = 133) ----
-
-fit.CTC5 <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ ctcCategoryOn5, data = data.Survival)
-names(fit.CTC5$strata) <-  c('CTC count <5<br>(Baseline)', 'CTC count ≥5<br>(Baseline)')
-
-# Calculate HR.
-fit.CTC5.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ ctcCategoryOn5, data = data.Survival)
-plotFits$fit.CTC5 <- plotSurvival(fit.CTC5, ylim = 45, data = data.Survival, hr = fit.CTC5.hr, palette = c('#f23005', '#ffbe73'))
-
-
-## Survival - WHO (All included; n = 127) ----
-
-fit.WHO <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ WHO.Pooled, data = data.Survival)
-names(fit.WHO$strata) <-  c('WHO status: 0', 'WHO status: 1-2')
-
-# Calculate HR.
-fit.WHO.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ WHO.Pooled, data = data.Survival)
-plotFits$fit.WHO <- plotSurvival(fit.WHO, ylim = 45, data = data.Survival, hr = fit.WHO.hr, palette = c('#ED468B', '#5A86C5'))
+plotFits$AllInclusion$plot +
+    plotFits$AllInclusion$table +
+    plotFits$AllInclusion$hr +
+    plotFits$AllInclusion.PosvsNeg$plot +
+    plotFits$AllInclusion.PosvsNeg$table +
+    plotFits$AllInclusion.PosvsNeg$hr +
+    plotFits$CabaOnly$plot +
+    plotFits$CabaOnly$table +
+    plotFits$CabaOnly$hr +
+    patchwork::plot_layout(design = layout, heights = c(1, .3, 1), guides = 'auto') +
+    patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
 
 
 # Multivariate Cox-regression ---------------------------------------------
 
-## Determine relevant factors (p <= 0.1; n = 127 complete cases) ----
+## Determine relevant factors (p <= 0.1; n = 125 complete cases) ----
 
-data.AIC <- data.Survival %>%
+data.AIC <- data.frame(data.Survival) %>%
     dplyr::select(
         monthsFromPreScreeningToEnd,
         Survival,
         AR.V7..Baseline.,
+        WHO.ECOG.PS.at.registration,
         Max..VAF,
         Total.Gleason,
         Age.at.registration,
         Nr..of.coding.mutations,
-        ctcCategoryOn5,
-        WHO.Pooled
+        Dichotomized.CTC.count..Baseline.,
+        WHO.status..Pooled.,
+        Patient.recieved.Cabazitaxel
     ) %>%
     dplyr::filter(!is.na(Survival), !is.na(Max..VAF), !is.na(Total.Gleason))
 
-fit.AIC <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline. + Max..VAF + Total.Gleason + Age.at.registration + Nr..of.coding.mutations + ctcCategoryOn5 + WHO.Pooled, data = data.AIC, ties = 'breslow')
+fit.AIC <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline. + AR.V7..Baseline.*Dichotomized.CTC.count..Baseline. + AR.V7..Baseline.*Patient.recieved.Cabazitaxel + Patient.recieved.Cabazitaxel + Max..VAF + Total.Gleason + Age.at.registration + Nr..of.coding.mutations + Dichotomized.CTC.count..Baseline. + WHO.status..Pooled., data = data.AIC, ties = 'breslow')
 
 # Determine relevant factors using backward selection.
 MASS::stepAIC(fit.AIC, direction = 'backward')
@@ -205,80 +240,30 @@ MASS::stepAIC(fit.AIC, direction = 'backward')
 
 # Multivariate Cox Regression on relevant factors -------------------------
 
-data.MultiCox <- data.Survival %>%
-    dplyr::select(
-        monthsFromPreScreeningToEnd,
-        AR.V7..Baseline.,
-        ctcCategoryOn5,
-        WHO.Pooled,
-        Survival
-    ) %>%
-    dplyr::filter(!is.na(Survival))
+plotFits$multiCox <- data.Survival %>% 
+    dplyr::filter(!is.na(Survival)) %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)` +`Dichotomized CTC count (Baseline)` + `AR-V7 (Baseline)` * `Patient recieved Cabazitaxel`, data = ., ties = 'breslow') %>% 
+    plotHR(., withQ = T)
 
-fit.MultiCox <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline. + ctcCategoryOn5 + WHO.Pooled, data = data.MultiCox, ties = 'breslow')
-plotFits$fit.MultiCox <- survminer::ggforest(fit.MultiCox, data = data.MultiCox, noDigits = 2)
+## Survival - CTC (All included; n = 137) ----
 
+fit.CTC5 <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ Dichotomized.CTC.count..Baseline., data = data.frame(data.Survival))
+names(fit.CTC5$strata) <-  c('CTC count <5<br>(Baseline)', 'CTC count ≥5<br>(Baseline)')
+plotFits$CTC <- plotSurvival(fit.CTC5, data = data.frame(data.Survival), ylim = 51, palette = c('#f23005', '#ffbe73'))
 
-# Generate Multi-Cox Figure -----------------------------------------------
+# Calculate HR.
+plotFits$CTC$hr <- data.Survival %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `Dichotomized CTC count (Baseline)`, data = .) %>% 
+    plotHR
+
+# Combine MultiCox and CTC ----
 
 layout <- "
-ABD
-ACE
-AFH
-#GI"
+AB
+AC"
 
-plotFits$fit.MultiCox +
-    plotFits$fit.ARV7.PosvsOther$plot +
-    plotFits$fit.ARV7.PosvsOther$table +
-    plotFits$fit.CTC$plot +
-    plotFits$fit.CTC$table +
-    plotFits$fit.WHO$plot +
-    plotFits$fit.WHO$table +
-    patchwork::plot_layout(design = layout, heights = c(1, .25, 1, .25), widths = c(1.5, 1, 1), guides = 'auto') +
-    patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
-
-
-# Kaplan - Converters -----------------------------------------------------
-
-
-plotFits$fit.BetweenConversion$plot +
-    plotFits$fit.BetweenConversion$table +
-    patchwork::plot_layout(nrow = 2, heights = c(1, .25), guides = 'auto') +
-    patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
-
-
-# Generate Suppl. Fig. ----------------------------------------------------
-
-# Generate groups.
-data.Survival <- data.Survival %>%
-    dplyr::mutate(
-        group = ifelse(CTC.Count..Baseline...7.5mL. < 5 & Genome.wide.status..Baseline. == 'Genome-wide Z-score <5', 'CTC count < 5 & Aneuploidy score < 5', 'Other'),
-        group = ifelse(CTC.Count..Baseline...7.5mL. < 5 & Genome.wide.status..Baseline. != 'Genome-wide Z-score <5', 'CTC count < 5 & Aneuploidy score ≥ 5', group),
-        group = ifelse(CTC.Count..Baseline...7.5mL. >= 5 & Genome.wide.status..Baseline. == 'Genome-wide Z-score <5', 'CTC count ≥ 5 & Aneuploidy score < 5', group),
-        group = ifelse(CTC.Count..Baseline...7.5mL. >= 5 & Genome.wide.status..Baseline. != 'Genome-wide Z-score <5', 'CTC count ≥ 5 & Aneuploidy score ≥ 5', group)
-    )
-
-
-fit.Groups <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ group, data = data.Survival)
-names(fit.Groups$strata) <-  gsub('group=', '', names(fit.Groups$strata))
-
-plotFits$groups <- plotSurvival(fit.Groups, data = data.Survival, ylim = 51)
-
-# Hazard Ratio of multiple groups.
-fit.groups.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ group, data = data.Survival)
-plotFits$fit.groups.hr <- survminer::ggforest(fit.groups.hr, data = data.Survival, noDigits = 2)
-
-# Combine plots.
-layout <- '
-AD
-BE
-CF'
-
-plotFits$AllInclusion$plot +
-    plotFits$AllInclusion$table +
-    plotFits$AllInClusion.hr +
-    plotFits$groups$plot +
-    plotFits$groups$table +
-    plotFits$fit.groups.hr +
-    patchwork::plot_layout(design = layout, heights = c(1, .25, 1.5), guides = 'auto') +
+plotFits$multiCox +
+    plotFits$CTC$plot +
+    plotFits$CTC$table +
+    patchwork::plot_layout(design = layout, heights = c(1, .2), guides = 'auto', widths = c(1, .75)) +
     patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
