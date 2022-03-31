@@ -171,23 +171,32 @@ plotFits$AllInclusion.PosvsNeg$hr <- data.Survival %>%
     survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
     plotHR
 
-## Survival - AR-V7 (All included; n = 77) ----
+## Survival - AR-V7 (All included; n = 68) ----
 
 fit.CabaOnly <- data.Survival %>% 
-    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    dplyr::filter(
+        (`AR-V7 (Baseline)` == 'Pos.' & `Inclusion (Treated with Caba)` == 'Yes') | `AR-V7 (Baseline)` == 'Neg.',
+        `Patient recieved Cabazitaxel` == 'Yes'
+    ) %>% 
     data.frame() %>% 
     survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline., data = .)
 
 names(fit.CabaOnly$strata) <-  c('AR-V7 Neg.', 'AR-V7 Pos.')
 
 plotFits$CabaOnly <- data.Survival %>% 
-    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    dplyr::filter(
+        (`AR-V7 (Baseline)` == 'Pos.' & `Inclusion (Treated with Caba)` == 'Yes') | `AR-V7 (Baseline)` == 'Neg.',
+        `Patient recieved Cabazitaxel` == 'Yes'
+    ) %>% 
     data.frame() %>% 
     plotSurvival(fit.CabaOnly, data = ., ylim = 51, palette = c('#648FFF', '#FE6100'))
 
 # Hazard Ratio of multiple groups.
 plotFits$CabaOnly$hr <- data.Survival %>% 
-    dplyr::filter( `AR-V7 (Baseline)` != 'Und.', `Patient recieved Cabazitaxel` == 'Yes') %>% 
+    dplyr::filter(
+        (`AR-V7 (Baseline)` == 'Pos.' & `Inclusion (Treated with Caba)` == 'Yes') | `AR-V7 (Baseline)` == 'Neg.',
+        `Patient recieved Cabazitaxel` == 'Yes'
+    ) %>% 
     survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
     plotHR
 
