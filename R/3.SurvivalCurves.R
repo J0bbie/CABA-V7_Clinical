@@ -197,7 +197,7 @@ plotFits$CabaOnly$hr <- data.Survival %>%
         (`AR-V7 (Baseline)` == 'Pos.' & `Inclusion (Treated with Caba)` == 'Yes') | `AR-V7 (Baseline)` == 'Neg.',
         `Patient recieved Cabazitaxel` == 'Yes'
     ) %>% 
-    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)`, data = .) %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)` + `AR-V7 (Baseline)` * `Patient recieved Cabazitaxel`, data = .) %>% 
     plotHR
 
 

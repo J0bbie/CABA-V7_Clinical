@@ -26,7 +26,7 @@ data.Patient$Hematology <- readxl::read_excel('Misc./Suppl. Table 1 - Overview o
 data.Patient$PSA <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'PSA Measurements', col_types = c('text', 'date', 'numeric'))
 data.Patient$priorChemo <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'Prior Treatment - Chemo', col_types = c('text', 'text', 'date', 'date', 'numeric', 'text'))
 data.Patient$priorHormonal <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'Prior Treatment - Hormonal', col_types = c('text', 'text', 'date', 'date', 'text'))
-data.Patient$AUC <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'AUC', col_types = c('numeric', 'text'))
+data.Patient$AUC <- readxl::read_excel('Misc./Suppl. Table 1 - Overview of Data.xlsx', trim_ws = T, sheet = 'AUC', col_types = c('text', 'numeric', 'text'))
 
 
 # Table 1 - Patient Characteristics ----
@@ -380,31 +380,36 @@ test <- data.frame(
 chisq.test(test, simulate.p.value = T)
 fisher.test(test, simulate.p.value = T, alternative = 'two.sided')
 
+
 # AUC - Cabazitaxel exposure ----
 
 dataAUC <- data.Patient$AUC %>%
     dplyr::group_by(Type) %>% 
     dplyr::mutate(
-        median = median(`Cabazitaxel AUC_0-24h (ng*h/ML) – Dose Corrected`),
+        median = round(median(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`)),
         group = sprintf('%s<br>(<i>n</i> = %s)', Type, dplyr::n())
     ) %>% 
-    dplyr::ungroup()
+    dplyr::ungroup() %>% 
+    dplyr::left_join(data.Patient$clinicalData) %>% 
+    dplyr::mutate(
+        `Response PSA` = ifelse(!is.na(`Response PSA`), `Response PSA`, 'No Response')
+    )
 
 stat.test <- dataAUC %>% 
-    dplyr::mutate(g = group, value = `Cabazitaxel AUC_0-24h (ng*h/ML) – Dose Corrected`) %>%
+    dplyr::mutate(g = group, value = `Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`) %>%
     rstatix::pairwise_wilcox_test(value ~ g, exact = T, p.adjust.method = 'none', detailed = T, paired = F) %>%
     rstatix::adjust_pvalue(method = 'BH') %>%
     rstatix::add_significance(cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c('***', '**', '*', 'ns'))
 
 dataAUC %>% 
     
-    ggplot2::ggplot(aes(x = group, y = `Cabazitaxel AUC_0-24h (ng*h/ML) – Dose Corrected`, fill = group, label = median)) +
+    ggplot2::ggplot(aes(x = group, y = `Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`, fill = group, shape = `Response PSA`, label = median, group = group)) +
     
     # Add half-half plots with median labels.
     gghalves::geom_half_boxplot(side = 'l', outlier.shape = NA, notch = T, show.legend = F) +
-    gghalves::geom_half_point_panel(side = 'r', shape = 21, size = 1.25, color = 'black', position = ggbeeswarm::position_quasirandom(width = .2)) +
+    gghalves::geom_half_point_panel(side = 'r', size = 1.66, color = 'black', position = ggbeeswarm::position_quasirandom(width = .2)) +
+    ggplot2::scale_shape_manual(values = c(23, 21)) +
     ggplot2::stat_summary(fun = median, colour='black', geom='text', size = 3, show.legend = FALSE, vjust=-2, angle = 90, hjust = .5) +
-    
     ggpubr::geom_bracket(aes(xmin = group1, xmax = group2, label = p.adj, fill = NULL, color = NULL, shape = NULL), data = stat.test, y.position = 450, step.increase = .02, tip.length = .01) +
     ggplot2::scale_fill_manual(values = c('#648FFF', '#FE6100', '#4D4D4D'), guide = 'none') +
     ggplot2::labs(x = NULL, y = 'Cabazitaxel AUC<sub>0-24h</sub> (ng*h/mL)<br>Dose Corrected') +
