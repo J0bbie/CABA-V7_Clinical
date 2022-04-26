@@ -383,12 +383,13 @@ fisher.test(test, simulate.p.value = T, alternative = 'two.sided')
 
 # AUC - Cabazitaxel exposure ----
 
-# Calculate geometric mean and SD.
+# Calculate geometric mean and CV.
 dataAUC <- data.Patient$AUC %>%
   dplyr::group_by(Type) %>% 
   dplyr::mutate(
     geoMean = round(DescTools::Gmean(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`)),
-    SD = sd(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`),
+    SD = sd(log(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`)),
+    CV = sqrt(exp(SD^2)-1)*100,
     group = sprintf('%s<br>(<i>n</i> = %s)', Type, dplyr::n())
   ) %>% 
   dplyr::ungroup() %>% 
@@ -399,12 +400,12 @@ dataAUC <- data.Patient$AUC %>%
 
 # Check variance.
 dataAUC %>% 
-  dplyr::mutate(g = group, value = `Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`) %>%
+  dplyr::mutate(g = group, value = log(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`)) %>%
   var.test(value ~ g, ., alternative = "two.sided")
 
 # Perform independent T-test with unequal variance
-stat.test <- dataAUC %>% 
-  dplyr::mutate(g = group, value = `Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`) %>%
+stat.test <- dataAUC %>%
+  dplyr::mutate(g = group, value = log(`Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`)) %>%
   rstatix::t_test(value ~ g, alternative = 'two', var.equal = F, p.adjust.method = 'none', detailed = T, paired = F) %>%
   rstatix::adjust_pvalue(method = 'BH') %>%
   rstatix::add_significance(cutpoints = c(0, 0.001, 0.01, 0.05, 1), symbols = c('***', '**', '*', 'ns'))
@@ -414,7 +415,7 @@ dataAUC %>%
   ggplot2::ggplot(aes(x = group, y = `Cabazitaxel AUC_0-24h (ng*h/mL) – Dose Corrected`, fill = group, label = geoMean, group = group)) +
   
   
-  ggplot2::geom_errorbar(lwd = .8, color = 'grey10', aes(ymin = geoMean - SD, ymax = geoMean + SD, xmin = group, xmax = group), width = .4) +
+  ggplot2::geom_errorbar(lwd = .8, color = 'grey10', aes(ymin = geoMean - CV, ymax = geoMean + CV, xmin = group, xmax = group), width = .4) +
   ggplot2::geom_errorbar(lwd = .8, color = 'grey10', aes(ymin = geoMean, ymax = geoMean, xmin = group, xmax = group), width = .4) +
   
   ggplot2::geom_point(size = 1.5, shape = 21, color = 'black', position = ggbeeswarm::position_beeswarm(cex = 3)) +
