@@ -86,6 +86,31 @@ print(
 )
 
 
+# Test between cabazitaxel-treated Pos./Neg. groups. ----
+
+
+tableOne <- tableone::CreateTableOne(
+  vars = c(
+    'Age at registration',
+    'WHO/ECOG PS at registration',
+    'Total Gleason',
+    'Local therapy',
+    'Prior hormonal therapy',
+    'Prior chemotherapy',
+    'Prior RTX metastases',
+    'Prior other treatment',
+    'M-stage primary diagnosis',
+    'PSA at primary diagnosis [ug/L]',
+    'postTreatment_Clean'
+  ),
+  strata = c("AR-V7 (Baseline)"),
+  data = data.Patient$clinicalData |> dplyr::filter(`AR-V7 (Baseline)` != 'Und.') |> dplyr::mutate("AR-V7 (Baseline)" = ifelse(grepl('Pos.', `AR-V7 (Baseline)`), 'Pos.', `AR-V7 (Baseline)`)) |> dplyr::filter(postTreatment_Clean == 'Cabazitaxel'),
+  smd = F,
+  test = T,
+  addOverall = T
+)
+
+
 # Determine mean/median of lab-values ----
 
 # PSA
