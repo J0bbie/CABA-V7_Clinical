@@ -187,7 +187,7 @@ MASS::stepAIC(survival::coxph(formula = survival::Surv(monthsFromPreScreeningToE
 
 plotFits$multiCox.AllSamples <- data.Survival %>% 
     dplyr::filter(!is.na(Survival)) %>% 
-    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)` + `AR-V7 (Baseline)` * `Patient recieved Cabazitaxel` + `Dichotomized CTC count (Baseline)`, data = ., ties = 'breslow') %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `AR-V7 (Baseline)` + `Patient recieved Cabazitaxel` + `AR-V7 (Baseline)` * `Patient recieved Cabazitaxel` + `Dichotomized CTC count (Baseline)`, data = ., ties = 'breslow') %>% 
     plotHR(., withQ = T)
 
 plotFits$multiCox.PosNegCaba <- data.Survival %>%
