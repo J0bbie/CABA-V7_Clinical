@@ -193,7 +193,7 @@ plotFits$multiCox.AllSamples <- data.Survival %>%
 plotFits$multiCox.PosNegCaba <- data.Survival %>%
     dplyr::filter(!is.na(Survival)) %>% 
     dplyr::filter(`Patient recieved Cabazitaxel` == 'Yes', `AR-V7 (Baseline)` != 'Und.') %>% 
-    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `Dichotomized CTC count (Baseline)`, data = ., ties = 'breslow') %>% 
+    survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ `Dichotomized CTC count (Baseline)` + `AR-V7 (Baseline)`, data = ., ties = 'breslow') %>% 
     plotHR(., withQ = T)
 
 
@@ -250,4 +250,50 @@ plotFits$multiCox.PosNegCaba +
     plotFits$CabaOnly$table +
     plotFits$fit.CabaOnly.CTC$table +
     patchwork::plot_layout(design = layout, heights = c(1.5, 1, .2), guides = 'auto') +
+    patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
+
+
+
+# Suppl. OS ---------------------------------------------------------------
+
+## WHO - All samples ----
+fit.AllInClusion.WHO <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ WHO.status..Pooled., data = data.frame(data.Survival))
+names(fit.AllInClusion.WHO$strata) <-  c('WHO status: 0', 'WHO status: 1-2')
+fit.AllInClusion.WHO.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ WHO.status..Pooled., data = data.frame(data.Survival))
+plotFits$fit.AllInClusion.WHO <- plotSurvival(fit.AllInClusion.WHO, data = data.frame(data.Survival), hr = fit.AllInClusion.WHO.hr, ylim = 51, palette = c('#2C3D4F', '#1ABB9A'))
+
+## CABA treatment  - All samples ----
+fit.AllInClusion.Treatment <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ Patient.recieved.Cabazitaxel, data = data.frame(data.Survival))
+names(fit.AllInClusion.Treatment$strata) <-  c('No cabazitaxel treatment', 'With cabazitaxel treatment')
+fit.AllInClusion.Treatment.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ Patient.recieved.Cabazitaxel, data = data.frame(data.Survival))
+plotFits$fit.AllInClusion.Treatment <- plotSurvival(fit.AllInClusion.Treatment, data = data.frame(data.Survival), hr = fit.AllInClusion.Treatment.hr, ylim = 51, palette = c('blue', 'red'))
+
+## Caba treatment vs. AR-V7 ----
+fit.CabavsAR <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7..Baseline. + Patient.recieved.Cabazitaxel, data = data.Survival %>%  dplyr::filter(`AR-V7 (Baseline)` != 'Und.') %>% data.frame())
+names(fit.CabavsAR$strata) <-  c('AR-V7 Neg. - No cabazitaxel treatment', 'AR-V7 Neg. - With cabazitaxel treatment', 'AR-V7 Pos. - No cabazitaxel treatment', 'AR-V7 Pos. - With cabazitaxel treatment')
+plotFits$fit.CabavsAR <- plotSurvival(fit.CabavsAR, data = data.Survival %>%  dplyr::filter(`AR-V7 (Baseline)` != 'Und.') %>% data.frame(), ylim = 51, palette = c('#648FFF', 'darkblue', 'orange', '#FE6100'))
+
+## Converters. ----
+data.BetweenConversion <- data.Survival %>% dplyr::filter(`Inclusion (Treated with Cabazitaxel)` == 'Yes')
+fit.BetweenConversion <- survminer::surv_fit(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7.Conversion, data = data.frame(data.BetweenConversion))
+names(fit.BetweenConversion$strata) <-  c('AR-V7 Conversion (Pos. -> Neg.)', 'AR-V7 Retainment (Pos. -> Pos.)')
+fit.BetweenConversion.hr <- survival::coxph(formula = survival::Surv(monthsFromPreScreeningToEnd, Survival) ~ AR.V7.Conversion, data = data.frame(data.BetweenConversion))
+plotFits$fit.BetweenConversion <- plotSurvival(fit.BetweenConversion, data = data.BetweenConversion %>% data.frame(), ylim = 21, hr = fit.BetweenConversion.hr, palette = c('#00A94D', '#FE6100'))
+
+### Combine Kaplans ----
+
+layout <- "AB
+EF
+CD
+GH"
+
+plotFits$fit.AllInClusion.WHO$plot +
+    plotFits$fit.AllInClusion.Treatment$plot +
+    plotFits$fit.CabavsAR$plot +
+    plotFits$fit.BetweenConversion$plot +
+    plotFits$fit.AllInClusion.WHO$table +
+    plotFits$fit.AllInClusion.Treatment$table +
+    plotFits$fit.CabavsAR$table +
+    plotFits$fit.BetweenConversion$table +
+    patchwork::plot_layout(design = layout, heights = c(1, .2), guides = 'auto') +
     patchwork::plot_annotation(tag_levels = 'a') & ggplot2::theme(plot.tag = element_text(size = 11, family = 'Helvetica'))
