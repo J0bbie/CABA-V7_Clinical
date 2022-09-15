@@ -59,7 +59,7 @@ dataOncoplot <- dataOncoplot %>%
 ## Add patient metadata ----
 
 dataOncoplot <- dataOncoplot %>%
-    dplyr::left_join(data.Patient$Overview %>% dplyr::mutate(`L-code` = `L-code (T1)`) %>% dplyr::select(`Subject Number`, `L-code`, `cfDNA yield (ng)`, `Response CTC`, `Response CTC-Decline`, `CTC Count (Baseline – 7.5mL)`, `AR-V7 (Baseline)`, `AR-V7 Conversion`, `Genome-wide status (Baseline)`, `Genome-wide status (T2)`, `Inclusion (Treated with Caba)`), by = 'L-code') %>%
+    dplyr::left_join(data.Patient$Overview %>% dplyr::mutate(`L-code` = `L-code (T1)`) %>% dplyr::select(`Subject Number`, `L-code`, `cfDNA yield (ng)`, `Response CTC`, `Response CTC-Decline`, `CTC Count (Baseline – 7.5mL)`, `AR-V7 (Baseline)`, `AR-V7 Conversion`, `Inclusion (Treated with Caba)`), by = 'L-code') %>%
     dplyr::left_join(data.Patient$clinicalData %>% dplyr::select(`Subject Number`, `Response PSA`), by = 'Subject Number')
 
 
@@ -230,24 +230,6 @@ tracks.oncoplot$oncoplot <- dataOncoplot %>% ggplot(aes(x = `L-code`, y = SYMBOL
         axis.ticks.x = element_blank()
     )
 
-## Genome-wide Z-score ----
-tracks.oncoplot$genomeWideZT1 <- dataOncoplot %>%
-    dplyr::distinct(`L-code`, `Genome-wide status (Baseline)`) %>%
-    dplyr::mutate(`Genome-wide status (Baseline)` = gsub('Genome-wide Z-score', 'Aneuploidy score', `Genome-wide status (Baseline)`)) %>%
-    ggplot2::ggplot(., aes(x = `L-code`, y = 'Aneuploidy status (Baseline)', fill = `Genome-wide status (Baseline)`)) +
-    ggplot2::geom_tile(width = .8, colour = 'grey50', lwd = .25, na.rm = T) +
-    ggplot2::labs(y = NULL, x = NULL) +
-    ggplot2::scale_fill_manual(values = c('Aneuploidy score <5' = 'black', 'Aneuploidy score ≥5' = 'grey70'), guide = guide_legend(title = NULL, title.position = 'top', title.hjust = 0.5, nrow = 1, keywidth = 0.5, keyheight = 0.5)) +
-    themeAnno_Job
-
-tracks.oncoplot$genomeWideZT2 <- dataOncoplot %>%
-    dplyr::distinct(`L-code`, `Genome-wide status (T2)`) %>%
-    dplyr::mutate(`Genome-wide status (T2)` = gsub('Genome-wide Z-score', 'Aneuploidy score', `Genome-wide status (T2)`)) %>%
-    ggplot2::ggplot(., aes(x = `L-code`, y = 'Aneuploidy status (T2)', fill = `Genome-wide status (T2)`)) +
-    ggplot2::geom_tile(width = .8, colour = 'grey50', lwd = .25, na.rm = T) +
-    ggplot2::labs(y = NULL, x = NULL) +
-    ggplot2::scale_fill_manual(values = c('Aneuploidy score <5' = 'black', 'Aneuploidy score ≥5' = 'grey70'), guide = guide_legend(title = NULL, title.position = 'top', title.hjust = 0.5, nrow = 1, keywidth = 0.5, keyheight = 0.5)) +
-    themeAnno_Job
 
 ## Baseline characteristics ----
 
@@ -259,15 +241,6 @@ tracks.oncoplot$baseline <- dataOncoplot %>%
     ggplot2::scale_fill_manual(values = c('Pos.' = '#FE6100', 'Neg.' = '#648FFF', 'Und.' = '#4D4D4D'), guide = guide_legend(title = NULL, title.position = 'top', title.hjust = 0.5, nrow = 1, keywidth = 0.5, keyheight = 0.5)) +
     themeAnno_Job
 
-## Conversion status ----
-
-tracks.oncoplot$Conversion <- dataOncoplot %>%
-    dplyr::distinct(`L-code`, `AR-V7 Conversion`) %>%
-    ggplot2::ggplot(., aes(x = `L-code`, y = 'AR-V7 Conversion', fill = `AR-V7 Conversion`)) +
-    ggplot2::geom_tile(width = .8, colour = 'grey50', lwd = .25, na.rm = T) +
-    ggplot2::labs(y = NULL, x = NULL) +
-    ggplot2::scale_fill_manual(values = c('Neg.' = '#00A94D', 'Pos.' = '#FE6100'), guide = guide_legend(title = NULL, title.position = 'top', title.hjust = 0.5, nrow = 1, keywidth = 0.5, keyheight = 0.5)) +
-    themeAnno_Job
 
 ## Responses ----
 
@@ -309,9 +282,6 @@ G#
 H#
 I#
 J#
-K#
-L#
-M#
 "
 
 tracks.oncoplot$TMB +
@@ -320,11 +290,8 @@ tracks.oncoplot$TMB +
     tracks.oncoplot$cfDNA +
     tracks.oncoplot$oncoplot + tracks.oncoplot$frequency +
     tracks.oncoplot$baseline +
-    tracks.oncoplot$genomeWideZT1 +
-    tracks.oncoplot$genomeWideZT2 +
-    tracks.oncoplot$Conversion +
     tracks.oncoplot$responsePSA +
     tracks.oncoplot$responseCTC +
     tracks.oncoplot$responseCTCDecline +
-    patchwork::plot_layout(design = layout, heights = c(.25, .25, .25, .25, 2, rep(.05, 7)), widths = c(1, .125), guides = 'collect') +
+    patchwork::plot_layout(design = layout, heights = c(.25, .25, .25, .25, 2, rep(.05, 4)), widths = c(1, .125), guides = 'collect') +
     patchwork::plot_annotation(tag_levels = 'a')

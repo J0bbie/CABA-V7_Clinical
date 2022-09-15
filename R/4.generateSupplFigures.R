@@ -44,12 +44,12 @@ overviewPatients %>%
     ggplot2::ggplot(., aes(x = reorder(`AR-V7 (Baseline) with n`, -medianCTC), y = `CTC Count (Baseline)`, fill = `AR-V7 (Baseline) with n`, label = medianCTC, group = `AR-V7 (Baseline) with n`)) +
     
     # Add half-half plots with median labels.
-    gghalves::geom_half_boxplot(side = 'l', outlier.shape = NA, notch = T, show.legend = F) +
-    gghalves::geom_half_point_panel(side = 'r', size = 1.25, color = 'black') +
+    gghalves::geom_half_boxplot(side = 'l', outlier.shape = NA, notch = F, show.legend = F) +
+    gghalves::geom_half_point_panel(side = 'r', shape = 21, size = 1, color = 'black', position = ggbeeswarm::position_quasirandom(width = .15)) +
     ggplot2::stat_summary(fun=median, colour='black', geom='text', size = 3, show.legend = FALSE, vjust=-4, angle = 90, hjust = .5) +
     
     ggpubr::geom_bracket(aes(xmin = group1, xmax = group2, label = p.adj.signif, fill = NULL, color = NULL, shape = NULL), data = stat.test, y.position = 9, step.increase = .02, tip.length = .01) +
     ggplot2::scale_fill_manual(values = c('#648FFF', '#FE6100', '#4D4D4D'), guide = 'none') +
     ggplot2::labs(x = 'AR-V7 determination (Baseline)', y = 'CTC Count (Baseline)') +
-    ggplot2::scale_y_continuous(trans = scales::pseudo_log_trans(), limits = c(-.1, 15000), breaks = c(0, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000)) +
+    ggplot2::scale_y_continuous(trans = scales::pseudo_log_trans(), limits = c(-.25, 15000), breaks = c(0, 3, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000), expand = c(0,0)) +
     theme_Job
