@@ -53,3 +53,14 @@ overviewPatients %>%
     ggplot2::labs(x = 'AR-V7 determination (Baseline)', y = 'CTC Count (Baseline)') +
     ggplot2::scale_y_continuous(trans = scales::pseudo_log_trans(), limits = c(-.25, 15000), breaks = c(0, 3, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000), expand = c(0,0)) +
     theme_Job
+
+
+
+
+dataModel <- overviewPatients %>% 
+    dplyr::filter(!grepl('Und', `AR-V7 (Baseline)`)) %>% 
+    dplyr::mutate(g = ifelse(`AR-V7 (Baseline)` == 'AR-V7<sup>Neg.</sup>', F, T)) %>% 
+    dplyr::select(`CTC Count (Baseline – 7.5mL)`, g)
+
+summary(glm(g ~ `CTC Count (Baseline – 7.5mL)`, family = binomial(), data = dataModel))
+                                   
